@@ -6,6 +6,9 @@ using namespace std;
 #include <time.h>
 
 #define MAXSNAKESIZE 100
+#define MAXFRAMEX 120
+#define MAXFRAMEY 30
+
 
 HANDLE console = GetStdHandle(STD_OUTPUT_HANDLE);
 COORD CursorPosition;
@@ -15,6 +18,19 @@ void gotoxy(int x, int y) {
     CursorPosition.Y = y;
     SetConsoleCursorPosition(console, CursorPosition);
 }
+
+void setcursor(bool visible, DWORD size) // set bool visible = 0 - invisible, bool visible = 1 - visible
+{
+    if(size == 0)
+    {
+        size = 20;	// default cursor size Changing to numbers from 1 to 20, decreases cursor width
+    }
+    CONSOLE_CURSOR_INFO lpCursor;
+    lpCursor.bVisible = visible;
+    lpCursor.dwSize = size;
+    SetConsoleCursorInfo(console,&lpCursor);
+}
+
 
 class Point {
 private:
@@ -44,19 +60,27 @@ public:
     }
     void MoveUp() {
         y--;
+        if(y < 0)
+            y = MAXFRAMEY;
     }
     void MoveDown() {
         y++;
+        if(y > MAXFRAMEY)
+            y = 0;
     }
     void MoveRight() {
         x++;
+        if(x > MAXFRAMEX)
+            x = 0;
     }
     void MoveLeft() {
         x--;
+        if(x < 0)
+            x = MAXFRAMEX;
     }
-    void Drow() {
+    void Drow(char ch='0') {
         gotoxy(x, y);
-        cout<<"*";
+        cout<<ch;
     }
     void Erase() {
         gotoxy(x, y);
@@ -65,6 +89,11 @@ public:
     void CopyPos(Point * p) {
         p->x = x;
         p->y = y;
+    }
+    int IsEqual(Point *p) {
+        if(p->x == x && p->y == y)
+            return 1;
+        return 0;
     }
     void Debug() {
         cout<<"("<<x<<", "<<y<<")";
@@ -78,34 +107,80 @@ private:
     int size; // current size of snake
     char dir; // current direction of snake
     Point fruit;
+    int state=1; // bool represent the state of the snake, living, dead
+    int started=1;
+    int blink; // make fruit blink
 public:
     Snake() {
         size = 1; // default size of snake
+        state = 0;
         cell[0] = new Point(10, 10); // 10,10 is default position of snake
         for(int i=1; i< MAXSNAKESIZE; i++) {
             cell[size] = NULL;
         }
-        fruit.SetPoint(rand()%50, rand()%25);
+        fruit.SetPoint(rand()%MAXFRAMEX, rand()%MAXFRAMEY);
+    }
+
+    void WelcomeScreen() {
+        gotoxy(70, 7);
+        SetConsoleTextAttribute(console, 15);
+        cout<<"\n   _________          _________";
+        cout<<"\n  /         \\       /         \\   AbdoAllah Akram";
+        cout<<"\n /  /~~~~~\\ \\    /  /~~~~~\\ \\";
+        cout<<"\n |  |     |  |     |  |     |  |";
+        cout<<"\n |  |     |  |     |  |     |  |";
+        cout<<"\n |  |     |  |     |  |     |  |      /";
+        cout<<"\n |  |     |  |     |  |     |  |    //";
+        cout<<"\n(o  o)    \\ \\_____/  /     \\ \\____/ /";
+        cout<<"\n \\_//      \\        /       \\       /";
+        cout<<"\n  |        ~~~~~~~~~         ~~~~~~~~";
+        cout<<"\n  ^";
+        cout<<"\n ";
     }
 
     void AddCell(int x, int y) {
         cell[size++] = new Point(x, y);
     }
     void TurnUp() {
-        dir = 'w'; // w is control key for turning up
+        if(dir != 's')
+            dir = 'w'; // w is control key for turning up
     }
     void TurnDown() {
-        dir = 's'; // s is control key for turning down
+        if(dir != 'w')
+            dir = 's'; // s is control key for turning down
     }
     void TurnRight() {
-        dir = 'd'; // d is control key for turning right
+        if(dir != 'a')
+            dir = 'd'; // d is control key for turning right
     }
     void TurnLeft() {
-        dir = 'a'; // w is control key for turning left
+        if(dir != 'd')
+            dir = 'a'; // w is control key for turning left
     }
     void Move() {
         // clear screen
         system("cls");
+
+        if(state == 0) {
+            if(started) {
+
+                WelcomeScreen();
+                cout<< "\nPress any key to start";
+                getch();
+                started = 1;
+                state = 1;
+            } else {
+
+                gotoxy(MAXFRAMEX/2-5,MAXFRAMEY/2);
+                cout<< "Game Over!";
+                gotoxy(MAXFRAMEX/2-11,MAXFRAMEY/2);
+                cout<< "\nPress any key to start";
+                getch();
+                state = 1;
+                size =1;
+            }
+
+        }
 
         // making snake body follow its head
         for(int i=size-1; i>0; i--) {
@@ -138,17 +213,33 @@ public:
         if(fruit.GetX() == cell[0]->GetX() && fruit.GetY() == cell[0]->GetY()) {
             AddCell(cell[size-1]->GetX()-1, cell[size-1]->GetY());
             //AddCell(0, 0);
-            fruit.SetPoint(rand()%50, rand()%25);
+            fruit.SetPoint(rand()%MAXFRAMEX, rand()%MAXFRAMEY);
         }
+
+        // collision with snake itself
+        if(SelfCollision())
+            state =0; started = 0;
+
+
 
         // drawing snake
         for(int i=0; i<size; i++) {
             cell[i]->Drow();
         }
-        fruit.Drow();
+        SetConsoleTextAttribute(console, 242);
+        if(!blink)
+            fruit.Drow('#');
+        blink = !blink;
+        SetConsoleTextAttribute(console, 252);
         //Debug();
-        Sleep(100);
+        Sleep(30);
 
+    }
+    int SelfCollision() {
+        for(int i=1; i<size; i++)
+            if(cell[0]->IsEqual(cell[i]))
+                return 1;
+        return 0;
     }
 
     void Debug() {
@@ -162,6 +253,9 @@ public:
 };
 
 int main() {
+
+    setcursor(0, 0);
+
     //random no generation
     srand( (unsigned)time(NULL));
 
